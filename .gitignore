@@ -1,0 +1,17 @@
+# Runtime logs
+devices.log
+*.log
+
+# Temporary hostapd / dnsmasq configs written to /tmp at runtime
+/tmp/hostapd_hotspot.conf
+/tmp/dnsmasq_hotspot.conf
+/tmp/hotspot.leases
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
