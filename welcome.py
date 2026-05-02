@@ -4,12 +4,21 @@
 Usage: python3 welcome.py [ap_ip]   (default: 192.168.50.1)
 """
 
+import base64
 import http.server
+import os
 import re
 import socketserver
 import sys
 import urllib.parse
 from datetime import datetime
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+try:
+    with open(os.path.join(_HERE, "image.jpg"), "rb") as _img:
+        IMAGE_SRC = "data:image/jpeg;base64," + base64.b64encode(_img.read()).decode()
+except OSError:
+    IMAGE_SRC = ""
 
 PORT = 80
 AP_IP = sys.argv[1] if len(sys.argv) > 1 else "192.168.50.1"
@@ -25,325 +34,228 @@ WELCOME_PAGE = f"""\
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Free Wi-Fi Security Warning</title>
+    <title>WARNING</title>
     <style>
-        * {{ box-sizing: border-box; }}
-        html {{ min-height: 100%; background: #050608; }}
+        *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+
+        html {{ background: #000; }}
+
         body {{
-            margin: 0;
-            min-height: 100vh;
-            font-family: Arial, Helvetica, sans-serif;
-            color: #f5f7fa;
-            background:
-                radial-gradient(circle at 50% 48%, rgba(255, 0, 45, .24), transparent 20rem),
-                radial-gradient(circle at 20% 18%, rgba(0, 255, 140, .15), transparent 28rem),
-                radial-gradient(circle at 82% 14%, rgba(255, 0, 45, .16), transparent 22rem),
-                linear-gradient(135deg, #050203 0%, #130407 45%, #020303 100%);
-            display: grid;
-            place-items: center;
-            padding: 28px 16px;
+            background: #000;
+            color: #00ff41;
+            font-family: "Courier New", Courier, monospace;
         }}
-        main {{
-            width: min(100%, 1080px);
-            display: grid;
-            grid-template-columns: minmax(0, 1.05fr) minmax(300px, .95fr);
-            gap: 42px;
-            align-items: center;
+
+        /* global CRT scan lines */
+        body::before {{
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0,0,0,.13) 0px,
+                rgba(0,0,0,.13) 1px,
+                transparent 1px,
+                transparent 3px
+            );
+            pointer-events: none;
+            z-index: 1000;
         }}
-        .warning {{
-            min-width: 0;
-        }}
-        .kicker {{
-            display: inline-block;
-            margin: 0 0 18px;
-            padding: 7px 11px;
-            border: 1px solid rgba(255, 30, 60, .9);
-            color: #ffdce2;
-            background: rgba(255, 0, 45, .2);
-            box-shadow: 0 0 22px rgba(255, 0, 45, .18);
-            font-size: 13px;
-            font-weight: 700;
-            letter-spacing: 0;
-            text-transform: uppercase;
-        }}
-        h1 {{
-            margin: 0;
-            max-width: 820px;
-            font-size: clamp(38px, 7vw, 78px);
-            line-height: 1;
-            font-weight: 900;
-            letter-spacing: 0;
-        }}
-        h1 strong {{
-            color: #ff1e3c;
-            text-shadow: 0 0 28px rgba(255, 0, 45, .5);
-        }}
-        .lead {{
-            margin: 24px 0 0;
-            max-width: 780px;
-            font-size: clamp(20px, 3vw, 30px);
-            line-height: 1.25;
-            font-weight: 800;
-        }}
-        .lead strong {{
-            color: #ff4f6f;
-            text-shadow: 0 0 18px rgba(255, 79, 111, .28);
-        }}
-        .labels {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 26px;
-        }}
-        .label {{
-            display: inline-flex;
-            align-items: center;
-            min-height: 38px;
-            padding: 0 13px;
-            border: 1px solid rgba(255, 30, 60, .7);
-            background: rgba(255, 0, 45, .16);
-            color: #ffdce2;
-            font-size: 14px;
-            font-weight: 900;
-            text-transform: uppercase;
-            box-shadow: inset 0 0 18px rgba(255, 0, 45, .08);
-        }}
-        .art {{
+
+        /* ── HERO ── */
+        .hero {{
             position: relative;
-            min-height: 540px;
+            width: 100%;
+            height: 100vh;
             overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, .12);
-            background:
-                radial-gradient(circle at 50% 58%, rgba(255, 0, 45, .28), transparent 16rem),
-                radial-gradient(circle at 50% 58%, rgba(82, 255, 191, .12), transparent 22rem),
-                linear-gradient(rgba(82, 255, 191, .06) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 0, 45, .08) 1px, transparent 1px),
-                linear-gradient(180deg, #130407 0%, #020303 100%);
-            background-size: 22px 22px, 22px 22px, auto;
-            box-shadow: 0 28px 80px rgba(0, 0, 0, .42);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 60px;
         }}
-        .art::before {{
+
+        .hero-img {{
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center 18%;
+            filter: grayscale(38%) contrast(1.14) brightness(0.66);
+            animation: img-glitch 12s infinite;
+        }}
+
+        /* dense scan lines on image */
+        .hero::before {{
             content: "";
             position: absolute;
             inset: 0;
             background: repeating-linear-gradient(
-                180deg,
-                rgba(255,30,60,.08) 0,
-                rgba(255,30,60,.08) 1px,
+                0deg,
+                rgba(0,0,0,.28) 0px,
+                rgba(0,0,0,.28) 1px,
                 transparent 1px,
-                transparent 5px
+                transparent 4px
             );
-            mix-blend-mode: screen;
+            z-index: 2;
             pointer-events: none;
         }}
-        .moon {{
-            position: absolute;
-            width: 190px;
-            height: 190px;
-            right: 44px;
-            top: 44px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 38% 35%, #ffffff, #caffe9 40%, #1b6f59 72%, transparent 73%);
-            opacity: .55;
-            filter: drop-shadow(0 0 35px rgba(255, 0, 45, .4));
-        }}
-        .code {{
-            position: absolute;
-            inset: 36px auto auto 34px;
-            width: 220px;
-            color: rgba(82, 255, 191, .78);
-            font-family: "Courier New", monospace;
-            font-size: 16px;
-            line-height: 1.35;
-            white-space: pre-line;
-        }}
-        .rain {{
-            position: absolute;
-            inset: 0;
-            display: grid;
-            grid-template-columns: repeat(9, 1fr);
-            gap: 10px;
-            padding: 22px;
-            color: rgba(255, 30, 60, .25);
-            font-family: "Courier New", monospace;
-            font-size: 18px;
-            line-height: 1.35;
-            overflow: hidden;
-            pointer-events: none;
-        }}
-        .rain span {{
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            text-shadow: 0 0 12px rgba(255, 0, 45, .5);
-        }}
-        .figure {{
-            position: absolute;
-            left: 50%;
-            bottom: 72px;
-            width: 290px;
-            height: 360px;
-            transform: translateX(-50%);
-        }}
-        .hood {{
-            position: absolute;
-            left: 24px;
-            top: 0;
-            width: 242px;
-            height: 292px;
-            border-radius: 118px 118px 26px 26px;
-            background: linear-gradient(135deg, #1d2427, #050608 70%);
-            border: 1px solid rgba(255,30,60,.18);
-            box-shadow: inset 0 0 48px rgba(0,0,0,.95), 0 30px 46px rgba(0,0,0,.56);
-        }}
-        .hood::before {{
+
+        /* vignette + bottom fade to black */
+        .hero::after {{
             content: "";
             position: absolute;
-            left: 42px;
-            right: 42px;
-            top: 24px;
-            bottom: 34px;
-            border-radius: 80px 80px 24px 24px;
-            background: linear-gradient(180deg, rgba(255,0,45,.1), rgba(0,0,0,.68));
-            border: 1px solid rgba(255,30,60,.12);
+            inset: 0;
+            background:
+                radial-gradient(ellipse at center, transparent 32%, rgba(0,0,0,.88) 100%),
+                linear-gradient(180deg, rgba(0,0,0,.45) 0%, transparent 25%, transparent 55%, rgba(0,0,0,.95) 100%);
+            z-index: 3;
+            pointer-events: none;
         }}
-        .face {{
+
+        /* glitch color bar */
+        .glitch-bar {{
             position: absolute;
-            left: 77px;
-            top: 82px;
-            width: 136px;
-            height: 142px;
-            border-radius: 50% 50% 45% 45%;
-            background: linear-gradient(180deg, #111820, #050608);
-            box-shadow: inset 0 0 28px rgba(0,0,0,.95);
+            inset: 0;
+            clip-path: inset(0 0 100% 0);
+            pointer-events: none;
+            z-index: 4;
+            animation: bar-glitch 12s step-start infinite;
         }}
-        .eyes {{
-            position: absolute;
-            left: 94px;
-            top: 132px;
-            display: flex;
-            gap: 42px;
+
+        .tagline {{
+            position: relative;
+            z-index: 5;
+            font-size: clamp(20px, 3.5vw, 38px);
+            font-weight: 400;
+            letter-spacing: .22em;
+            text-transform: lowercase;
+            color: #00ff41;
+            text-shadow:
+                0 0 12px rgba(0,255,65,.95),
+                0 0 36px rgba(0,255,65,.45),
+                0 0 80px rgba(0,255,65,.18);
+            animation: tag-pulse 3.5s ease-in-out infinite;
         }}
-        .eyes span {{
-            width: 26px;
-            height: 7px;
-            background: #ff1e3c;
-            box-shadow: 0 0 18px rgba(255, 0, 45, .95);
+
+        /* ── TERMINAL ── */
+        .terminal {{
+            max-width: 660px;
+            margin: 0 auto;
+            padding: 72px 28px 88px;
         }}
-        .body {{
-            position: absolute;
-            left: 18px;
-            bottom: 0;
-            width: 254px;
-            height: 166px;
-            border-radius: 50px 50px 0 0;
-            background: linear-gradient(120deg, #101821, #050608);
-            border: 1px solid rgba(255,255,255,.08);
+
+        .dim {{ color: rgba(0,255,65,.38); font-size: clamp(12px,1.8vw,14px); line-height: 2.1; }}
+        .dim::before {{ content: "> "; }}
+
+        .gap {{ height: 26px; }}
+
+        h1 {{
+            font-size: clamp(36px,7vw,68px);
+            font-weight: 400;
+            line-height: 1.06;
+            color: #00ff41;
+            text-shadow: 0 0 22px rgba(0,255,65,.55), 0 0 60px rgba(0,255,65,.18);
         }}
-        .laptop {{
-            position: absolute;
-            left: -10px;
-            right: -10px;
-            bottom: 0;
-            height: 122px;
-            background: linear-gradient(180deg, #1e2a35, #090d11);
-            border: 1px solid rgba(255, 30, 60, .38);
-            box-shadow: 0 0 30px rgba(255, 0, 45, .26);
+        h1 .no {{
+            display: block;
+            color: #ff3c00;
+            text-shadow: 0 0 18px rgba(255,60,0,.8), 0 0 50px rgba(255,60,0,.25);
         }}
-        .laptop::before {{
-            content: "PUBLIC_WIFI";
-            position: absolute;
-            top: 26px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #ff4f6f;
-            font-family: "Courier New", monospace;
-            font-size: 18px;
-            font-weight: 700;
-            text-shadow: 0 0 12px rgba(255, 0, 45, .9);
+
+        .rule {{ border: none; border-top: 1px solid rgba(0,255,65,.18); margin: 28px 0; }}
+
+        .warn-list {{ list-style: none; display: flex; flex-direction: column; gap: 12px; }}
+        .warn-list li {{ font-size: clamp(13px,2vw,16px); line-height: 1.5; }}
+        .warn-list li::before {{ content: "[!] "; color: #ff3c00; text-shadow: 0 0 8px rgba(255,60,0,.9); }}
+
+        .footer {{ margin-top: 36px; font-size: clamp(11px,1.6vw,13px); color: rgba(0,255,65,.3); letter-spacing: .05em; }}
+
+        .cursor {{
+            display: inline-block;
+            width: 9px; height: .9em;
+            background: #00ff41;
+            vertical-align: text-bottom;
+            margin-left: 3px;
+            box-shadow: 0 0 8px rgba(0,255,65,.8);
+            animation: blink 1.1s step-end infinite;
         }}
-        .caption {{
-            position: absolute;
-            left: 22px;
-            right: 22px;
-            bottom: 22px;
-            margin: 0;
-            color: #ffffff;
-            background: rgba(0, 0, 0, .58);
-            border: 1px solid rgba(255, 30, 60, .7);
-            box-shadow: 0 0 22px rgba(255, 0, 45, .18);
-            padding: 14px 16px;
-            font-size: 18px;
-            line-height: 1.35;
-            font-weight: 800;
-            text-align: center;
+
+        /* ── ANIMATIONS ── */
+        @keyframes blink {{
+            0%,100% {{ opacity: 1; }}
+            50% {{ opacity: 0; }}
         }}
-        @media (max-width: 860px) {{
-            body {{ place-items: start center; }}
-            main {{
-                grid-template-columns: 1fr;
-                gap: 30px;
+
+        @keyframes tag-pulse {{
+            0%,100% {{
+                text-shadow: 0 0 12px rgba(0,255,65,.95), 0 0 36px rgba(0,255,65,.45), 0 0 80px rgba(0,255,65,.18);
             }}
-            .art {{
-                min-height: 450px;
+            50% {{
+                text-shadow: 0 0 18px rgba(0,255,65,1), 0 0 52px rgba(0,255,65,.6), 0 0 110px rgba(0,255,65,.25);
             }}
-            .figure {{
-                transform: translateX(-50%) scale(.82);
-                transform-origin: bottom center;
+        }}
+
+        @keyframes img-glitch {{
+            0%, 86%, 100% {{
+                transform: translate(0);
+                filter: grayscale(38%) contrast(1.14) brightness(0.66);
             }}
-            .moon {{
-                width: 140px;
-                height: 140px;
-                right: 24px;
-                top: 24px;
+            87% {{
+                transform: translate(-6px, 2px);
+                filter: grayscale(75%) contrast(1.45) brightness(0.52) hue-rotate(85deg);
             }}
-            .code {{
-                width: 170px;
-                font-size: 13px;
+            87.6% {{
+                transform: translate(6px, -2px);
+                filter: grayscale(15%) contrast(1.05) brightness(0.88) saturate(2);
             }}
+            88.2% {{
+                transform: translate(0);
+                filter: grayscale(38%) contrast(1.14) brightness(0.66);
+            }}
+            93% {{
+                transform: translate(4px, 1px);
+                filter: grayscale(95%) contrast(1.6) brightness(0.5);
+            }}
+            93.6% {{
+                transform: translate(0);
+                filter: grayscale(38%) contrast(1.14) brightness(0.66);
+            }}
+        }}
+
+        @keyframes bar-glitch {{
+            0%, 86%, 100% {{ clip-path: inset(0 0 100% 0); background: transparent; }}
+            87%   {{ clip-path: inset(12% 0 75% 0); background: rgba(0,255,65,.1); }}
+            87.3% {{ clip-path: inset(52% 0 36% 0); background: rgba(255,60,0,.12); }}
+            87.6% {{ clip-path: inset(0 0 100% 0); background: transparent; }}
+            93%   {{ clip-path: inset(28% 0 64% 0); background: rgba(0,255,65,.08); }}
+            93.4% {{ clip-path: inset(0 0 100% 0); background: transparent; }}
         }}
     </style>
 </head>
 <body>
-    <main>
-        <section class="warning" aria-label="Free Wi-Fi security warning">
-            <p class="kicker">Wi-Fi warning</p>
-            <h1><strong>Free Wi-Fi</strong> can steal your login.</h1>
-            <p class="lead">
-                Never enter passwords on unknown networks. <strong>Your traffic can be sniffed.</strong>
-            </p>
-            <div class="labels" aria-label="Risk labels">
-                <span class="label">Credential theft</span>
-                <span class="label">Traffic sniffing</span>
-                <span class="label">Fake hotspot</span>
-            </div>
-        </section>
-        <section class="art" aria-label="Cyber security warning illustration">
-            <div class="moon" aria-hidden="true"></div>
-            <div class="rain" aria-hidden="true">
-                <span>01001101010111000101</span>
-                <span>access denied 010101</span>
-                <span>packet trace 001011</span>
-                <span>root shell 101001</span>
-                <span>session token 0110</span>
-                <span>public wifi 11001</span>
-                <span>sniffing blocked 010</span>
-                <span>ghost route 10110</span>
-                <span>stay offline 00101</span>
-            </div>
-            <div class="code" aria-hidden="true">unknown AP
-credential risk
-packet sniffing
-disconnect</div>
-            <div class="figure" aria-hidden="true">
-                <div class="hood"></div>
-                <div class="face"></div>
-                <div class="eyes"><span></span><span></span></div>
-                <div class="body"></div>
-                <div class="laptop"></div>
-            </div>
-            <p class="caption">Do not trust unknown free Wi-Fi. Disconnect.</p>
-        </section>
-    </main>
+    <section class="hero" aria-label="Warning — they are watching">
+        <img class="hero-img" src="{IMAGE_SRC}" alt="anonymous mask">
+        <div class="glitch-bar" aria-hidden="true"></div>
+        <p class="tagline">they are watching.</p>
+    </section>
+
+    <section class="terminal" aria-label="Security warning">
+        <p class="dim">scanning traffic&hellip;</p>
+        <p class="dim">hello, friend.</p>
+        <div class="gap"></div>
+        <h1>
+            FREE WIFI
+            <span class="no">&#x2260;&nbsp;SAFE WIFI</span>
+        </h1>
+        <hr class="rule">
+        <ul class="warn-list" aria-label="Security warnings">
+            <li>captive portals can steal your credentials</li>
+            <li>your traffic is visible to the AP owner</li>
+            <li>never log in on a network you don&#x27;t own</li>
+        </ul>
+        <p class="footer">stay dark. stay safe.<span class="cursor" aria-hidden="true"></span></p>
+    </section>
 </body>
 </html>
 """
