@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Safety-focused captive portal web server for JmilAP hotspot.
+"""Safety-focused captive portal web server for FreeWifi AP.
 Usage: python3 welcome.py [ap_ip]   (default: 192.168.50.1)
 """
 

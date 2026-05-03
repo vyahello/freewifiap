@@ -93,7 +93,7 @@ Edit the variables at the top of `start_free_ap.sh`:
 ```bash
 IFACE=wlan0          # wireless interface in AP mode
 AP_IP=192.168.50.1   # gateway IP served to clients
-SSID=FreeWifi      # network name shown to nearby devices
+SSID=FreeWifi        # network name shown to nearby devices
 PASSWORD=JmilPass    # WPA2 passphrase (--secure mode only)
 ```
 
