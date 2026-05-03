@@ -4,7 +4,6 @@
 Usage: python3 welcome.py [ap_ip]   (default: 192.168.50.1)
 """
 
-import base64
 import http.server
 import os
 import re
@@ -14,11 +13,7 @@ import urllib.parse
 from datetime import datetime
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-try:
-    with open(os.path.join(_HERE, "image.jpg"), "rb") as _img:
-        IMAGE_SRC = "data:image/jpeg;base64," + base64.b64encode(_img.read()).decode()
-except OSError:
-    IMAGE_SRC = ""
+IMAGE_PATH = os.path.join(_HERE, "image.jpg")
 
 PORT = 80
 AP_IP = sys.argv[1] if len(sys.argv) > 1 else "192.168.50.1"
@@ -235,7 +230,7 @@ WELCOME_PAGE = f"""\
 </head>
 <body>
     <section class="hero" aria-label="Warning — they are watching">
-        <img class="hero-img" src="{IMAGE_SRC}" alt="anonymous mask">
+        <img class="hero-img" src="/image.jpg" alt="anonymous mask">
         <div class="glitch-bar" aria-hidden="true"></div>
         <p class="tagline">they are watching.</p>
     </section>
@@ -392,12 +387,61 @@ class WelcomeHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(WELCOME_BYTES)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(WELCOME_BYTES)
 
+    def send_image(self):
+        try:
+            image_size = os.path.getsize(IMAGE_PATH)
+            image_file = open(IMAGE_PATH, "rb")
+        except OSError:
+            self.send_error(404)
+            return
+
+        with image_file:
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(image_size))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            while True:
+                chunk = image_file.read(64 * 1024)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+
+    def should_serve_image(self):
+        parsed = urllib.parse.urlsplit(self.path)
+        return parsed.path == "/image.jpg"
+
     def do_GET(self):
         self.log_request_fingerprint()
+        if self.should_serve_image():
+            self.send_image()
+            return
         self.send_welcome_page()
+
+    def do_HEAD(self):
+        self.log_request_fingerprint()
+        if self.should_serve_image():
+            try:
+                image_size = os.path.getsize(IMAGE_PATH)
+            except OSError:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(image_size))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            return
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(WELCOME_BYTES)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", "0") or 0)

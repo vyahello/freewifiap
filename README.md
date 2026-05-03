@@ -11,7 +11,7 @@
 
 ## What This Project Does
 
-**FreeWifiAP** creates a realistic-looking open Wi-Fi hotspot that shows every connecting device a **security warning page** instead of granting internet access. Its purpose is to make people aware — in a visceral, immediate way — that connecting to unknown free Wi-Fi is dangerous.
+**FreeWifi** creates a realistic-looking open Wi-Fi hotspot that shows every connecting device a **security warning page** instead of granting internet access. Its purpose is to make people aware — in a visceral, immediate way — that connecting to unknown free Wi-Fi is dangerous.
 
 When a device joins the network:
 
@@ -67,7 +67,7 @@ sudo apt install hostapd dnsmasq ieee-data python3
 ### Open network + captive portal (recommended for demos)
 
 ```bash
-sudo bash start_welcome_ap.sh
+sudo bash start_free_ap.sh
 ```
 
 Every connecting device is redirected to the security warning page. No password required to join — just like a real cafe hotspot.
@@ -75,7 +75,7 @@ Every connecting device is redirected to the security warning page. No password 
 ### WPA2-protected network + captive portal
 
 ```bash
-sudo bash start_welcome_ap.sh --secure
+sudo bash start_free_ap.sh --secure
 ```
 
 Uses a WPA2 passphrase (set `PASSWORD` inside the script). The captive portal still runs after authentication.
@@ -88,12 +88,12 @@ Press `Ctrl+C`. The script's `EXIT` trap cleans up `hostapd`, `dnsmasq`, and `ip
 
 ## Configuration
 
-Edit the variables at the top of `start_welcome_ap.sh`:
+Edit the variables at the top of `start_free_ap.sh`:
 
 ```bash
 IFACE=wlan0          # wireless interface in AP mode
 AP_IP=192.168.50.1   # gateway IP served to clients
-SSID=FreeWifiAP      # network name shown to nearby devices
+SSID=FreeWifi      # network name shown to nearby devices
 PASSWORD=JmilPass    # WPA2 passphrase (--secure mode only)
 ```
 
@@ -129,7 +129,7 @@ This stops any leftover `hostapd`/`dnsmasq` processes, resets the interface to m
 
 ```
 freewifiap/
-├── start_welcome_ap.sh   # main script — sets up the AP and portal
+├── start_free_ap.sh      # main script — sets up the AP and portal
 ├── welcome.py            # captive portal HTTP server (security warning page)
 ├── recover_wlan0.sh      # recovery script for a broken wlan0
 └── devices.log           # runtime log — gitignored
@@ -146,6 +146,6 @@ This tool is intended for:
 - **CTF / lab environments** under controlled conditions
 - **Personal education** about wireless network risks
 
-Running a rogue access point against users who have not consented is **illegal** in most jurisdictions. The SSID `FreeWifiAP` is intentionally generic and non-deceptive — do not rename it to impersonate a real network.
+Running a rogue access point against users who have not consented is **illegal** in most jurisdictions. The SSID `FreeWifi` is intentionally generic and non-deceptive — do not rename it to impersonate a real network.
 
 **You are responsible for how you use this tool.**

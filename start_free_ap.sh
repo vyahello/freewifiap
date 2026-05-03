@@ -3,12 +3,12 @@ set -e
 
 IFACE=wlan0
 AP_IP=192.168.50.1
-SSID=FreeWifiAP
+SSID=FreeWifi
 PASSWORD=JmilPass   # hardcoded WPA2 password (min 8 chars)
 
 # Usage:
-#   sudo bash start_welcome_ap.sh           → open network + warning captive portal
-#   sudo bash start_welcome_ap.sh --secure  → WPA2 + warning captive portal
+#   sudo bash start_free_ap.sh           → open network + warning captive portal
+#   sudo bash start_free_ap.sh --secure  → WPA2 + warning captive portal
 USE_PASSWORD=false
 USE_PORTAL=true
 for arg in "$@"; do
