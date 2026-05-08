@@ -11,6 +11,7 @@ devices.log
 __pycache__/
 *.py[cod]
 *.pyo
+venv/
 
 # OS
 .DS_Store

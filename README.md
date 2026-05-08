@@ -72,13 +72,13 @@ sudo bash start_free_ap.sh
 
 Every connecting device is redirected to the security warning page. No password required to join — just like a real cafe hotspot.
 
-### WPA2-protected network + captive portal
+### Open network + login captive portal (credential capture demo)
 
 ```bash
 sudo bash start_free_ap.sh --secure
 ```
 
-Uses a WPA2 passphrase (set `PASSWORD` inside the script). The captive portal still runs after authentication.
+Runs an open network with a login-style captive portal (`portal.py`) instead of the warning page. When a client connects, they are shown a sign-in form asking for an email/username and password. Submitted credentials are printed to the operator's terminal and appended to `devices.log`. No real internet is forwarded — this demonstrates exactly how an evil-twin portal phishing attack works.
 
 ### Stop the AP
 
@@ -94,7 +94,6 @@ Edit the variables at the top of `start_free_ap.sh`:
 IFACE=wlan0          # wireless interface in AP mode
 AP_IP=192.168.50.1   # gateway IP served to clients
 SSID=FreeWifi        # network name shown to nearby devices
-PASSWORD=JmilPass    # WPA2 passphrase (--secure mode only)
 ```
 
 ---
@@ -103,13 +102,22 @@ PASSWORD=JmilPass    # WPA2 passphrase (--secure mode only)
 
 Every connection and disconnection is appended to `devices.log` (excluded from git). Example entries:
 
+**Default mode** (`welcome.py`):
 ```
 [2025-04-29 14:03:11] CONNECTED    mac=AA:BB:CC:DD:EE:FF  ip=192.168.50.12  vendor=Apple, Inc.  hostname=Janes-iPhone  ...
 [2025-04-29 14:03:12] WELCOME_REQUEST ip=192.168.50.12  device=iPhone  os=iOS 17.4  browser_engine=AppleWebKit 605.1 ...
 [2025-04-29 14:09:44] DISCONNECTED mac=AA:BB:CC:DD:EE:FF  ip=192.168.50.12  ...
 ```
 
-The portal (`welcome.py`) also parses the User-Agent to identify device type, OS version, and browser engine, and correlates it with the DHCP lease for hostname and MAC.
+**`--secure` mode** (`portal.py`) — also logs captured credentials:
+```
+[2025-04-29 14:03:11] CONNECTED    mac=AA:BB:CC:DD:EE:FF  ip=192.168.50.12  vendor=Apple, Inc.  hostname=Janes-iPhone  ...
+[2025-04-29 14:03:14] PORTAL_REQUEST ip=192.168.50.12  device=iPhone  os=iOS 17.4  ...
+[2025-04-29 14:03:21] CREDENTIAL_CAPTURE ip=192.168.50.12  mac=AA:BB:CC:DD:EE:FF  hostname=Janes-iPhone  username='jane@example.com'  password='hunter2'
+[2025-04-29 14:09:44] DISCONNECTED mac=AA:BB:CC:DD:EE:FF  ip=192.168.50.12  ...
+```
+
+Both portals parse the User-Agent to identify device type, OS version, and browser engine, and correlate it with the DHCP lease for hostname and MAC.
 
 ---
 
@@ -130,7 +138,8 @@ This stops any leftover `hostapd`/`dnsmasq` processes, resets the interface to m
 ```
 freewifiap/
 ├── start_free_ap.sh      # main script — sets up the AP and portal
-├── welcome.py            # captive portal HTTP server (security warning page)
+├── welcome.py            # default captive portal (security warning page)
+├── portal.py             # --secure captive portal (login form, credential capture)
 ├── recover_wlan0.sh      # recovery script for a broken wlan0
 └── devices.log           # runtime log — gitignored
 ```
